@@ -1,0 +1,31 @@
+---
+- name: Gather facts from all hosts.
+  hosts: all
+  gather_facts: no
+  become: yes
+  tasks:
+    - setup:
+      tags: always
+
+# includes Alertmanager and blackbox-exporter too
+- name: Install and configure Prometheus monitoring system.
+  hosts: securedrop-monitoring
+  become: yes
+  roles:
+    - role: prometheus
+      tags: prometheus
+
+- name: Install and configure Grafana.
+  hosts: securedrop-monitoring
+  become: yes
+  roles:
+    - role: grafana
+      tags: grafana
+
+# includes dnsmasq, Tor, Privoxy, and nginx reverse proxy
+- name: Install dependencies for monitoring SecureDrop instances.
+  hosts: securedrop-monitoring
+  become: yes
+  roles:
+    - role: securedrop-monitoring
+      tags: securedrop-monitoring

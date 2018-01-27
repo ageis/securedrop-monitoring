@@ -1,0 +1,16 @@
+---
+- name: Install Privoxy.                                                          
+  apt:                                                                          
+    name: privoxy                                                        
+    state: present
+
+- name: Install Privoxy configuration.
+  template:
+    src: privoxy.config.j2
+    dest: /etc/privoxy/config
+    owner: privoxy
+    group: root
+    mode: "0644"
+  tags: privoxy-cfg
+  notify: restart privoxy
+

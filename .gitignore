@@ -1,0 +1,4 @@
+.molecule/*
+.vagrant/*
+aws-private.pem
+*.swp

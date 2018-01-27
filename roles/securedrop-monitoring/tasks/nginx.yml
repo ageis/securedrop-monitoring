@@ -1,0 +1,27 @@
+---                                                                             
+- name: Install nginx.                                                          
+  apt:                                                                          
+    name: nginx                                                                 
+    state: present                                                              
+                                                                                 
+- name: Remove nginx default virtualhost.                                       
+  file:                                                                         
+    path: /etc/nginx/sites-enabled/default                                      
+    state: absent                                                               
+  notify: restart nginx                                                         
+                                                                                 
+- name: Upload nginx configuration file.                                        
+  template:                                                                     
+    src: nginx.conf.j2                                                    
+    dest: /etc/nginx/sites-available/securedrop-monitoring.conf                                 
+    owner: root                                                                 
+    group: root                                                                 
+    mode: "644"                                                                 
+  notify: restart nginx                                                         
+                                                                                 
+- name: Create nginx configuration symlinks.                                    
+  file:                                                                         
+    src: /etc/nginx/sites-available/securedrop-monitoring.conf                                  
+    dest: /etc/nginx/sites-enabled/securedrop-monitoring.conf                                   
+    state: link                                                                 
+  notify: restart nginx   

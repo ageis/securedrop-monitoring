@@ -1,0 +1,6 @@
+---
+- name: reload grafana
+  service:
+    name: grafana-server
+    state: reloaded
+    enabled: yes

@@ -1,0 +1,20 @@
+ ---
+ 
+ 
+ iptables -t nat -A OUTPUT -d 127.0.0.1/32 -p udp -m udp --dport 53 -j REDIRECT --to-ports 53
+ iptables -t nat -A OUTPUT -d 127.0.0.1/32 -p tcp -m tcp --dport 53 -j REDIRECT --to-ports 53
+                                                                                 
+ iptables -t nat -A PREROUTING -i eth0 -p udp --dport 53 -j REDIRECT --to-ports 53
+ iptables -t nat -A PREROUTING ! -i lo -p udp -m udp --dport 53 -j REDIRECT --to-ports 53
+                                                                                 
+ iptables -t nat -A PREROUTING -i eth0 -p tcp --dport 53 -j REDIRECT --to-ports 53
+ iptables -t nat -A PREROUTING ! -i lo -p tcp -m tcp --dport 53 -j REDIRECT --to-ports 53
+                                                                                 
+ iptables -t nat -A OUTPUT -p udp --dport 53 -j REDIRECT --to-ports 53           
+ iptables -t nat -A OUTPUT -p tcp --dport 53 -j REDIRECT --to-ports 53           
+                                                                                 
+ iptables -t filter -A OUTPUT -p udp -m udp --dport 53 -j ACCEPT                 
+ iptables -t filter -A OUTPUT -p tcp -m tcp --dport 53 -j ACCEPT                 
+                                                                                 
+ iptables -t nat -A OUTPUT ! -o lo -p udp -m udp --dport 53 -j REDIRECT --to-ports 53
+ iptables -t nat -A OUTPUT ! -o lo -p tcp -m tcp --dport 53 -j REDIRECT --to-ports 53

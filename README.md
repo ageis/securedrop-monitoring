@@ -1,7 +1,11 @@
 # Monitoring for SecureDrop instances
 Automation code for Prometheus, Alertmanager, Grafana and blackbox-exporter.
 
-Configured to 
+Configured to check for availability of Tor hidden services. The flow is like blackbox_exporter (HTTP requests over Tor, via Privoxy) → Prometheus (time series numerical metric database with querying and alerting capabilities) → Grafana (visualization) + Alertmanager (notification).
+
+Prometheus is a pull-based monitoring system, it makes a periodic GET request to an HTTP metrics endpoint (which is termed scraping) hosted by blackbox_exporter (which can be configured to look for HTTP 2xx responses) in order to obtain the results of probes against certain targets.
+
+As Tor can transparently proxy TCP, but is not an HTTP proxy, Privoxy is used since Prometheus's blackbox_exporter does not support SOCKS. DNS lookups for .onions are facilitated by enabling Tor's DNSPort+AutomapHostsOnResolve+VirtualAddrNetworkIPv4 options, which returns fake IPv4 addresses. dnsmasq is included for caching of DNS queries. 
 
 Getting started
 ---------------
@@ -16,7 +20,7 @@ All commands documented here are expected to be executed from root of this repos
 sudo pip install -U ansible
 ```
 
-We recommend Ansible 2.4.1 or later.
+We recommend Ansible 2.4.2 or later.
 
 Edit the hosts inventory at `inventory/hosts` and set the IP address for securedrop-monitoring. It's ideal to have some DNS subdomains pointing to that same server. I'd suggest the following pattern: Prometheus=monitoring, blackbox-exporter=metrics, Grafana=graphs, Alertmanager=alerts.
 
@@ -27,7 +31,7 @@ There is some manual work involved to get the nginx frontend or reverse proxy fo
 Extra tips for getting this to work
 -----------------------------------
 
-Edit /etc/resolv.conf and put `nameserver 127.0.0.1` at the top in order to enforce resolution through Tor (with caching provided by dnsmasq). The Go program will simply not know what to do without a fake virtual IP address provided by Tor's DNS server.
+Edit /etc/resolv.conf and put `nameserver 127.0.0.1` at the top in order to enforce resolution through Tor (with caching provided by dnsmasq). The Go program will simply not know what to do without a fake virtual IP address provided by Tor's DNS server. You might also consider adding some iptables rules to direct outgoing DNS queries back to the machine.
 
 Download and build Go from source and/or blackbox-exporter with the options `GODEBUG=netdns=cgo CGO_ENABLED=1`. Go seems to need the CGO resolver instead of its built-in one in order to process onion address correctly (this is why we also have `RES_OPTIONS` set).
 

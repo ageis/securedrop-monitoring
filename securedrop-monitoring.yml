@@ -1,31 +1,106 @@
 ---
 - name: Gather facts from all hosts.
-  hosts: all
+  hosts: localhost
+  connection: local
   gather_facts: no
-  become: yes
+  become: no
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+    securedrop_instances: []
   tasks:
     - setup:
-      tags: always
+        gather_subset: min
 
-# includes Alertmanager and blackbox-exporter too
-- name: Install and configure Prometheus monitoring system.
-  hosts: securedrop-monitoring
-  become: yes
-  roles:
-    - role: prometheus
-      tags: prometheus
+    - name: obtain name of user on the Ansible controller
+      set_fact:
+        local_user: "{{ lookup('env', 'USER') | first }}"
+      delegate_to: localhost
 
-- name: Install and configure Grafana.
-  hosts: securedrop-monitoring
-  become: yes
-  roles:
-    - role: grafana
-      tags: grafana
+    - docker_compose:
+        project_src: "{{ playbook_dir }}"
+        project_name: "securedrop-monitoring"
+        build: yes
+        debug: yes
+        recreate: smart
+        pull: yes
+        state: present
+        restarted: true
+      register: docker_compose_output
 
-# includes dnsmasq, Tor, Privoxy, and nginx reverse proxy
-- name: Install dependencies for monitoring SecureDrop instances.
-  hosts: securedrop-monitoring
-  become: yes
-  roles:
-    - role: securedrop-monitoring
-      tags: securedrop-monitoring
+    - name: Get infos on container
+      docker_container_info:
+        name: sd-torproxy
+      register: result
+
+    - name: debug
+      debug:
+        var: docker_compose_output
+
+    - name: debug
+      debug:
+        var: result.container
+
+    - name: set container
+      set_fact:
+        container: "{{ result.container | dict2items }}"
+
+    - name: set container_network_settings
+      set_fact:
+        container_network_settings: "{{ item.value }}"
+      when: item.key is match('NetworkSettings')
+      with_items: "{{ container }}"
+
+    - name: set container_networks
+      set_fact:
+        container_networks: "{{ item }}"
+      when: item.key is match('Networks')
+      with_items:
+        - "{{ container_network_settings | dict2items }}"
+
+    - name: debug items
+      set_fact:
+        container_nets: "{{ item.value }}"
+      when: item.key is match('value')
+      with_items: "{{ container_networks | dict2items | unique | flatten }}"
+
+    - name: set container_ip_address
+      set_fact:
+        container_ip_address: "{{ container_nets['securedrop-monitoring_sd-monitoring']['IPAddress'] }}"
+
+    - name: gather instances from securedrop.org public directory
+      uri:
+        url: https://securedrop.org/api/v1/directory/?format=json
+        method: GET
+        body_format: json
+        status_code: 200
+        validate_certs: no
+        register: securedrop_directory
+
+    - name: collect lists of addresses and titles
+      set_fact:
+        securedrop_addresses: "{{ securedrop_directory['json'] | map(attribute='onion_address') | list }}"
+        securedrop_titles: "{{ securedrop_directory['json'] | map(attribute='title') | list }}"
+
+    - name: make new list of dicts with only the info we need
+      set_fact:
+        securedrop_instances: "{{ securedrop_instances | default([]) + [dict(address=item[0], title=item[1])] }}"
+        loop: "{{ securedrop_addresses | zip(securedrop_titles) | list }}"
+
+    - name: copy new Prometheus config with correct proxy address
+      template:
+        src: prometheus.yml.j2
+        dest: "{{ playbook_dir }}/files/prometheus/prometheus.yml"
+        owner: "{{ local_user }}"
+        group: "{{ local_user }}"
+        mode: 0664
+      delegate_to: localhost
+
+    - name: copy list of securedrop instances to Prometheus targets
+      template:
+        src: targets.json.j2
+        dest: "{{ playbook_dir }}/files/prometheus/targets.json"
+        owner: "{{ local_user }}"
+        group: "{{ local_user }}"
+        force: yes
+        mode: 0664
+      delegate_to: localhost

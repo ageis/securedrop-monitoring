@@ -1,0 +1,40 @@
+server {
+    listen 80;
+    #listen 443 ssl http2 deferred default;
+    server_name localhost;
+    
+    #ssl_certificate /etc/letsencrypt/live/monitoring.securedrop.org/fullchain.pem;
+    #ssl_certificate_key /etc/letsencrypt/live/monitoring.securedrop.org/privkey.pem;
+
+    access_log /dev/stdout;
+    error_log /dev/stdout info;
+
+    #auth_basic 'authorization required';
+    #auth_basic_user_file /var/www/htpasswd;
+
+    client_body_buffer_size 2048k;
+    large_client_header_buffers 4 256k;
+    client_header_buffer_size 4096k;
+    client_body_timeout 30s;
+    client_header_timeout 30s;
+    client_max_body_size 128m;
+
+    location /grafana/ {
+        proxy_pass http://{{ grafana_container_ip_address }}:3000/;
+        include proxy_params;
+        #proxy_set_header X-WEBAUTH-USER $remote_user;
+        #proxy_set_header Authorization "";
+    }
+
+    location /prometheus/ {
+        proxy_pass http://{{ prometheus_container_ip_address }}:9090/prometheus/;
+        include proxy_params;
+    }
+
+    location /alertmanager/ {
+        proxy_pass http://{{ alertmanager_container_ip_address }}:9093/;
+        rewrite ^/alertmanager/(.*) /$1 break;
+        include proxy_params;
+    }
+
+}

@@ -1,0 +1,155 @@
+---
+version: '3.7'
+
+networks:
+  sd-monitoring:
+    driver: bridge
+
+services:
+  sd-prometheus:
+    container_name: sd-prometheus
+    hostname: sd-prometheus
+    image: prom/prometheus:latest # v2.9.2
+    volumes:
+      - ./files/prometheus/:/etc/prometheus/
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      #- '--storage.tsdb.path=/var/lib/prometheus/metrics2'
+      #- '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      #- '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--log.level=info'
+      - '--web.listen-address=0.0.0.0:9090'
+      - '--web.route-prefix=/prometheus'
+      - '--web.external-url=https://rendezvous.cointel.pro/prometheus'
+      - '--query.timeout=30s'
+      - '--web.read-timeout=1m'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    environment:
+      - HTTP_PROXY=http://tcp(sd-torproxy):8123
+      - HTTPS_PROXY=http://tcp(sd-torproxy):8123
+    ports:
+      - 9090:9090
+    links:
+      - sd-alertmanager:sd-alertmanager
+      - sd-torproxy:sd-torproxy
+    depends_on:
+      - sd-torproxy
+    networks:
+      - sd-monitoring
+    restart: always
+
+  sd-mysql:
+    image: mysql:latest
+    hostname: sd-mysql
+    container_name: sd-mysql
+    command: [mysqld, --character-set-server=utf8mb4, --collation-server=utf8mb4_unicode_ci, --innodb_monitor_enable=all, --max-connections=1001, --default-authentication-plugin=mysql_native_password]
+    restart: always
+    environment:
+      MYSQL_USER: root
+      MYSQL_ROOT_PASSWORD: PQ9BAm5kPfrqqDfaF99fkRng
+    networks:
+      - sd-monitoring
+    ports:
+      - 3306:3306
+    expose:
+      - '3306'
+
+  sd-alertmanager:
+    hostname: sd-alertmanager
+    container_name: sd-alertmanager
+    image: prom/alertmanager:latest # v0.17.0
+    command:
+      - '--config.file=/etc/alertmanager/config.yml'
+      - '--web.external-url=http://sd-alertmanager/alertmanager'
+      - '--data.retention=672h'
+      - '--storage.path=/alertmanager'
+    ports:
+      - 9093:9093
+    volumes:
+      - ./files/alertmanager/:/etc/alertmanager/
+    networks:
+      - sd-monitoring
+    restart: always
+
+  sd-grafana:
+    image: grafana/grafana:latest # v6.2.1
+    hostname: sd-grafana
+    container_name: sd-grafana
+    ports:
+      - 3000:3000
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=PQ9BAm5kPfrqqDfaF99fkRng
+      - GF_SERVER_ROOT_URL=https://rendezvous.cointel.pro/grafana
+      #- GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+      #- GF_DATABASE_NAME=grafana
+      #- GF_DATABASE_USER=root
+      #- GF_DATABASE_PASSWORD=PQ9BAm5kPfrqqDfaF99fkRng
+      #- GF_DATABASE_TYPE=mysql
+      #- GF_DATABASE_HOST=sd-mysql:3306
+      #- GF_DATABASE_MAX_OPEN_CONN=300
+      #- GF_SESSION_PROVIDER=mysql
+      #- GF_SESSION_PROVIDER_CONFIG=root:PQ9BAm5kPfrqqDfaF99fkRng@tcp(sd-mysql:3306)/grafana?allowNativePasswords=true
+    depends_on:
+      - sd-mysql
+    links:
+      - sd-mysql
+    volumes:
+      - ./files/grafana:/etc/grafana
+    networks:
+      - sd-monitoring
+    restart: always
+
+  sd-torproxy:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    container_name: sd-torproxy
+    hostname: sd-torproxy
+    init: true
+    restart: on-failure
+    networks:
+      - sd-monitoring
+    ports:
+      - "7123:8123"
+      - "7118:8118"
+      - "7050:9050"
+      - "7051:9051"
+      - "7053:9053"
+
+  sd-blackbox-exporter:
+    container_name: sd-blackbox-exporter
+    image: prom/blackbox-exporter:latest # v.0.14.0
+    hostname: sd-blackbox-exporter
+    restart: on-failure
+    volumes:
+      - ./files/prometheus/:/etc/prometheus/
+    command:
+      - '--config.file=/etc/prometheus/blackbox.yml'
+    networks:
+      - sd-monitoring
+    ports:
+      - "9115:9115"
+
+  sd-nginx:
+    container_name: sd-nginx
+    image: nginx:latest # 1.15.12, should be 1.17.0
+    hostname: securedrop-monitoring
+    restart: on-failure
+    volumes:
+      - ./files/nginx/:/etc/nginx
+      - /etc/letsencrypt/:/etc/letsencrypt/
+    command:
+      - '--config.file=/etc/prometheus/blackbox.yml'
+    networks:
+      - sd-monitoring
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - NGINX_HOST=securedrop-monitoring
+      - NGINX_PORT=80
+    command: /bin/bash -c "envsubst < /etc/nginx/conf.d/securedrop-monitoring.conf > /etc/nginx/conf.d/default.conf && exec nginx -g 'daemon off;'"
+
+
+

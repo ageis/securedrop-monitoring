@@ -1,0 +1,17 @@
+---
+version: '3.7'
+
+services:
+  sd-mysql:
+    entrypoint: ["echo", "service sd-mysql is temporarily disabled"]
+  sd-grafana:
+    entrypoint: ["echo", "service sd-grafana is temporarily disabled"]
+  sd-torproxy:
+    entrypoint: ["echo", "service sd-torproxy is temporarily disabled"]
+    ports: []
+  sd-blackbox-exporter:
+    entrypoint: ["echo", "service sd-blackbox-exporter is temporarily disabled"]
+    ports: []
+  sd-alertmanager:
+    entrypoint: ["echo", "service sd-alertmanager is temporarily disabled"]
+    ports: []

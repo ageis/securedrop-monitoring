@@ -1,0 +1,37 @@
+SOCKSPort 127.0.0.1:9050 IsolateSOCKSAuth KeepAliveIsolateSOCKSAuth 
+#CacheIPv4DNS UseIPv4Cache
+SOCKS5ProxyPassword 9a826989280683fb37ac469e7ec2e372
+SOCKS5ProxyUsername securedrop
+SOCKSPolicy accept 127.0.0.1
+SOCKSPolicy accept 10.0.0.0/8 192.168.0.0/8 172.0.0.0/8 169.254.0.0/16
+SOCKSPolicy reject *
+
+PidFile /run/tor.pid
+Log notice file /var/log/tor/notice.log
+Log warn stderr
+
+RunAsDaemon 1
+DataDirectory /var/lib/tor
+AutomapHostsOnResolve 1
+AutomapHostsSuffixes .onion
+AvoidDiskWrites 1
+ControlPort 127.0.0.1:9051
+CookieAuthentication 1
+DNSPort 127.0.0.1:9053
+#HTTPTunnelPort 127.0.0.1:8119
+#UnixSocksGroupWritable 1
+SocksTimeout 60
+MaxCircuitDirtiness 30minutes
+StrictNodes 1
+NewCircuitPeriod 300
+OptimisticData 1
+
+# 9a826989280683fb37ac469e7ec2e372
+HashedControlPassword 16:17FB8283597A7363603BD274F5863CE978F525329ACA45D46298BE5CF0
+HeartbeatPeriod 30minutes
+
+TransPort 127.0.0.1:9040
+VirtualAddrNetworkIPv4 172.99.0.0/10
+
+SafeLogging 0
+Sandbox 1

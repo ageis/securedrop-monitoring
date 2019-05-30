@@ -1,0 +1,14 @@
+modules:
+  http_tor_2xx:
+    prober: http
+    timeout: 30s
+    http:
+      method: GET
+      valid_status_codes: [200]
+      no_follow_redirects: true
+      fail_if_ssl: false
+      fail_if_not_ssl: false
+      proxy_url: http://{{ proxy_container_ip_address }}:8123
+      tls_config:
+        insecure_skip_verify: true
+      preferred_ip_protocol: "ip4"

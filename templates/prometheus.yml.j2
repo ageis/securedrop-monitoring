@@ -1,0 +1,26 @@
+---
+global:
+  scrape_interval: 120s
+  evaluation_interval: 90s
+  scrape_timeout: 60s
+  external_labels:
+    monitor: 'securedrop'
+rule_files:
+  - securedrop-alerts.yml
+
+scrape_configs:
+- job_name: 'securedrop'
+  metrics_path: /probe
+  #proxy_url: http://{{ proxy_container_ip_address }}:8123
+  params:
+    module: [http_tor_2xx]
+  file_sd_configs:
+  - files:
+    - targets.json
+  relabel_configs:
+    - source_labels: [__address__]
+      target_label: __param_target
+    - source_labels: [__param_target]
+      target_label: instance
+    - target_label: __address__
+      replacement: {{ blackbox_container_ip_address }}:9115

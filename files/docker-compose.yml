@@ -1,0 +1,18 @@
+---
+version: '3.7'
+  sd-torproxy:
+    build:
+      context: ../
+      dockerfile: ../Dockerfile
+    container_name: sd-torproxy
+    hostname: sd-torproxy
+    init: true
+    restart: on-failure
+    networks:
+      - sd-monitoring
+    ports:
+      - "8123:8123"
+      - "8118:8118"
+      - "9050:9050"
+      - "9051:9051"
+      - "9053:9053"

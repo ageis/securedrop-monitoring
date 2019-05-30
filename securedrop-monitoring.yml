@@ -2,11 +2,17 @@
 - name: Gather facts from all hosts.
   hosts: localhost
   connection: local
-  gather_facts: no
+  gather_facts: yes
   become: no
   vars:
     ansible_python_interpreter: /usr/bin/python3
     securedrop_instances: []
+  pre_tasks:
+    - name: Verify that Ansible meets version requirements.
+      assert:
+        that: "ansible_version.full is version_compare('2.8', '>=')"
+        msg: >
+          "Running this playbook requires Ansible version 2.8 or greater."
   tasks:
     - setup:
         gather_subset: min
@@ -15,92 +21,149 @@
       set_fact:
         local_user: "{{ lookup('env', 'USER') | first }}"
       delegate_to: localhost
+      tags: always
 
-    - docker_compose:
+    - name: Check whether the containers are present yet.
+      docker_container:
+        name: "{{ item }}"
+        state: present
+        image: "{{ item }}"
+      with_items:
+        - sd-prometheus
+        - sd-alertmanager
+        - sd-blackbox-exporter
+        - sd-torproxy
+        - sd-mysql
+        - sd-grafana
+        - sd-nginx
+      register: docker_container_results
+      check_mode: yes
+
+    - name: Pull images and build the container images if necessary.
+      docker_compose:
         project_src: "{{ playbook_dir }}"
         project_name: "securedrop-monitoring"
         build: yes
-        debug: yes
+        debug: no
         recreate: smart
         pull: yes
         state: present
-        restarted: true
+        restarted: yes
+        dependencies: yes
+        stopped: no
       register: docker_compose_output
+      #when: docker_container_results['msg'] is not match('All items completed')
 
-    - name: Get infos on container
-      docker_container_info:
+    - name: Obtain facts concerning Tor proxy container.
+      docker_container:
         name: sd-torproxy
-      register: result
+        #image: securedrop-monitoring_sd-torproxy
+      check_mode: yes
+      register: proxy
 
-    - name: debug
-      debug:
-        var: docker_compose_output
+    - name: Obtain facts concerning Prometheus blackbox_exporter container.
+      docker_container:
+        name: sd-blackbox-exporter
+        #image: prom/blackbox-exporter:latest
+      check_mode: yes
 
-    - name: debug
-      debug:
-        var: result.container
+    - name: Obtain facts concerning Grafana container.
+      docker_container:
+        name: sd-grafana
+        #image: grafana/grafana:latest
+      check_mode: yes
 
-    - name: set container
+    - name: Obtain facts concerning Prometheus container.
+      docker_container:
+        name: sd-prometheus
+        #image: prom/prometheus:latest
+      check_mode: yes
+      register: prometheus
+
+
+    - name: Obtain facts concerning Alertmanager container.
+      docker_container:
+        name: sd-alertmanager
+        #image: prom/alertmanager:latest
+      check_mode: yes
+      register: alertmanager
+
+    - name: Set facts for container IP addresses.
       set_fact:
-        container: "{{ result.container | dict2items }}"
+        proxy_container_ip_address: "{{ proxy.container.NetworkSettings.Networks['securedrop-monitoring_sd-monitoring'].IPAddress | default('127.0.0.1') }}"
+        blackbox_container_ip_address: "{{ blackbox.container.NetworkSettings.Networks['securedrop-monitoring_sd-monitoring'].IPAddress | default('127.0.0.1') }}"
+        grafana_container_ip_address: "{{ grafana.container.NetworkSettings.Networks['securedrop-monitoring_sd-monitoring'].IPAddress | default('127.0.0.1') }}"
+        prometheus_container_ip_address: "{{ prometheus.container.NetworkSettings.Networks['securedrop-monitoring_sd-monitoring'].IPAddress | default('127.0.0.1') }}"
+        alertmanager_container_ip_address: "{{ alertmanager.container.NetworkSettings.Networks['securedrop-monitoring_sd-monitoring'].IPAddress | default('127.0.0.1') }}"
 
-    - name: set container_network_settings
-      set_fact:
-        container_network_settings: "{{ item.value }}"
-      when: item.key is match('NetworkSettings')
-      with_items: "{{ container }}"
-
-    - name: set container_networks
-      set_fact:
-        container_networks: "{{ item }}"
-      when: item.key is match('Networks')
-      with_items:
-        - "{{ container_network_settings | dict2items }}"
-
-    - name: debug items
-      set_fact:
-        container_nets: "{{ item.value }}"
-      when: item.key is match('value')
-      with_items: "{{ container_networks | dict2items | unique | flatten }}"
-
-    - name: set container_ip_address
-      set_fact:
-        container_ip_address: "{{ container_nets['securedrop-monitoring_sd-monitoring']['IPAddress'] }}"
-
-    - name: gather instances from securedrop.org public directory
+    - name: Gather list of instances from securedrop.org public directory.
       uri:
         url: https://securedrop.org/api/v1/directory/?format=json
         method: GET
         body_format: json
         status_code: 200
-        validate_certs: no
-        register: securedrop_directory
+        validate_certs: yes
+      register: securedrop_directory
 
-    - name: collect lists of addresses and titles
+    - name: Set facts for the addresses and titles.
       set_fact:
         securedrop_addresses: "{{ securedrop_directory['json'] | map(attribute='onion_address') | list }}"
         securedrop_titles: "{{ securedrop_directory['json'] | map(attribute='title') | list }}"
 
-    - name: make new list of dicts with only the info we need
+    - name: Form new list of dicts with only the info we need (assuming a linear 1:1 relationship).
       set_fact:
         securedrop_instances: "{{ securedrop_instances | default([]) + [dict(address=item[0], title=item[1])] }}"
-        loop: "{{ securedrop_addresses | zip(securedrop_titles) | list }}"
+      loop: "{{ securedrop_addresses | zip(securedrop_titles) | list }}"
 
-    - name: copy new Prometheus config with correct proxy address
+    - name: Copy Prometheus configs.
       template:
-        src: prometheus.yml.j2
-        dest: "{{ playbook_dir }}/files/prometheus/prometheus.yml"
+        src: "{{ item }}.j2"
+        dest: "{{ playbook_dir }}/files/prometheus/{{ item }}"
+        owner: "{{ local_user }}"
+        group: "{{ local_user }}"
+        mode: 0664
+      delegate_to: localhost
+      with_items:
+        - prometheus.yml
+        - blackbox.yml
+        - targets.json
+
+    - name: Copy nginx reverse proxy config.
+      template:
+        src: "nginx/securedrop-monitoring.conf.j2"
+        dest: "{{ playbook_dir }}/files/nginx/conf.d/securedrop-monitoring.conf"
         owner: "{{ local_user }}"
         group: "{{ local_user }}"
         mode: 0664
       delegate_to: localhost
 
-    - name: copy list of securedrop instances to Prometheus targets
+    - name: Copy Polipo and Privoxy configs.
       template:
-        src: targets.json.j2
-        dest: "{{ playbook_dir }}/files/prometheus/targets.json"
+        src: "{{ item }}_config.j2"
+        dest: "{{ playbook_dir }}/files/{{ item }}_config"
         owner: "{{ local_user }}"
         group: "{{ local_user }}"
         force: yes
         mode: 0664
       delegate_to: localhost
+      with_items:
+        - polipo
+        - privoxy
+
+    - name: Fully rebuild and restart nginx, Prometheus, blackbox_exporter and the proxy container.
+      docker_compose:
+        project_src: "{{ playbook_dir }}"
+        project_name: "securedrop-monitoring"
+        build: yes
+        recreate: smart
+        pull: no
+        state: present
+        restarted: yes
+        nocache: yes
+        dependencies: no
+        services:
+          - sd-torproxy
+          - sd-prometheus
+          - sd-blackbox-exporter
+          - sd-nginx
+      register: docker_compose_output

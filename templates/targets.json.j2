@@ -1,0 +1,13 @@
+[
+ {% if securedrop_instances is defined %}
+ {% for instance in securedrop_instances %}
+   {
+    "targets": [ "{{ instance.address }}" ],
+    "labels": {
+      "name": "{{ instance.title }}",
+      "job": "securedrop"
+    }
+  }{% if not loop.last %},{% endif %}
+  {% endfor %}
+  {% endif %}
+]

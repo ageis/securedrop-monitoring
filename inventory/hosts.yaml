@@ -1,0 +1,8 @@
+---
+all:
+  hosts:
+    localhost:
+      ansible_host: 127.0.0.1
+      ansible_port: 22
+      ansible_user: "{{ lookup('env', 'USER') | first }}"
+      ansible_connection: local

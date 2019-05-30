@@ -1,6 +1,0 @@
----
-prometheus_hostname: securedrop.monitoring
-prometheus_alertmanager_hostname: alerts.securedrop.monitoring
-prometheus_blackbox_exporter_hostname: metrics.securedrop.monitoring
-grafana_hostname: graphs.securedrop.monitoring
-

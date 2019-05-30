@@ -57,26 +57,22 @@
     - name: Obtain facts concerning Tor proxy container.
       docker_container:
         name: sd-torproxy
-        #image: securedrop-monitoring_sd-torproxy
       check_mode: yes
       register: proxy
 
     - name: Obtain facts concerning Prometheus blackbox_exporter container.
       docker_container:
         name: sd-blackbox-exporter
-        #image: prom/blackbox-exporter:latest
       check_mode: yes
 
     - name: Obtain facts concerning Grafana container.
       docker_container:
         name: sd-grafana
-        #image: grafana/grafana:latest
       check_mode: yes
 
     - name: Obtain facts concerning Prometheus container.
       docker_container:
         name: sd-prometheus
-        #image: prom/prometheus:latest
       check_mode: yes
       register: prometheus
 
@@ -84,7 +80,6 @@
     - name: Obtain facts concerning Alertmanager container.
       docker_container:
         name: sd-alertmanager
-        #image: prom/alertmanager:latest
       check_mode: yes
       register: alertmanager
 

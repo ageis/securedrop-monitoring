@@ -80,7 +80,7 @@ services:
       - 3000:3000
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=PQ9BAm5kPfrqqDfaF99fkRng
-      - GF_SERVER_ROOT_URL=https://rendezvous.cointel.pro/grafana
+      - GF_SERVER_ROOT_URL=http://localhost/grafana
       #- GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
       #- GF_DATABASE_NAME=grafana
       #- GF_DATABASE_USER=root
@@ -111,11 +111,11 @@ services:
     networks:
       - sd-monitoring
     ports:
-      - "7123:8123"
-      - "7118:8118"
-      - "7050:9050"
-      - "7051:9051"
-      - "7053:9053"
+      - "8123:8123"
+      - "8118:8118"
+      - "9050:9050"
+      - "9051:9051"
+      - "9053:9053"
 
   sd-blackbox-exporter:
     container_name: sd-blackbox-exporter
